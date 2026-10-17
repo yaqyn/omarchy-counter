@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "qv.azkar",
+  "name": "Azkar counter",
+  "version": "1.4.0",
+  "author": "Abdulrahman M. Yaqyn",
+  "description": "Quiet persistent counter with native controls",
+  "kinds": [
+    "bar-widget",
+    "service"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "service": "Service.qml"
+  },
+  "barWidget": {
+    "displayName": "Azkar counter",
+    "description": "Quiet persistent counter",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "left"
+  },
+  "license": "MIT"
+}
