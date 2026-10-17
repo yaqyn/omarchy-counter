@@ -2,7 +2,7 @@
 
 # Counter — a quiet tally counter for Omarchy
 
-Count azkar, repetitions, or everyday tallies while you work. Reserve one key to add a count without switching windows or opening a popup.
+A minimalist tally counter for azkar (Islamic remembrance), repetitions and everyday counting. Reserve one key to add a count without switching windows or opening a popup.
 
 The bar shows only the number. Click it for Reset, Undo and a key chooser: click the displayed key, press your preferred key, then Apply. Your total and selected key stay saved across restarts.
 

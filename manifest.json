@@ -4,7 +4,7 @@
   "name": "Counter",
   "version": "1.4.0",
   "author": "Abdulrahman M. Yaqyn",
-  "description": "A quiet tally counter for azkar, repetitions and everyday counting.",
+  "description": "A minimalist tally counter for azkar (Islamic remembrance), repetitions and everyday counting.",
   "kinds": [
     "bar-widget",
     "service"

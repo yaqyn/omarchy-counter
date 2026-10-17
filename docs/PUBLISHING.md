@@ -27,7 +27,9 @@ Listing draft:
 - Author: Abdulrahman M. Yaqyn
 - Category: Productivity
 - Tags: Bar, Hyprland, Quickshell
-- Summary: A quiet tally counter for azkar, repetitions and everyday counting, with a reserved key and native controls.
+- Suggested missing marketplace tag: Islamic
+- Additional GitHub search topics: islamic, dhikr, azkar, minimalist, tally-counter
+- Summary: A minimalist tally counter for azkar (Islamic remembrance), repetitions and everyday counting, with a reserved key and native controls.
 - License: MIT
 - Preview: `preview.png` (an exact copy of `assets/panel.png`, at the root for marketplace detection)
 
