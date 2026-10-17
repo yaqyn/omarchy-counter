@@ -45,7 +45,7 @@ These use virtual outputs and an installed software stack on one host. Synthetic
 
 ## Live interaction checks
 
-The local prototype and final installed package were inspected through real screenshots and keyboard navigation. The selected-key, Apply, cancellation and feedback paths are checked in the live desktop without resetting the user's total. Ordinary counting remains an active-session shortcut rather than a kernel-level keyboard remap.
+The local prototype's selected-key, Apply, cancellation and feedback paths were checked in the live desktop through screenshots and keyboard navigation. The final package was rendered in the nested desktop, then installed in the live desktop with its saved count and key preserved, one active binding, healthy service status and no Hyprland configuration errors. Ordinary counting remains an active-session shortcut rather than a kernel-level keyboard remap.
 
 ## Checks that still require another environment
 
