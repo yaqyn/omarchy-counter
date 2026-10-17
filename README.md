@@ -1,49 +1,78 @@
-# Counter
+![Counter cover: a tally of 33 connected to an F1 key](readme-assets/cover.svg)
 
-Counter is a quiet tally counter for Omarchy—for azkar, repetitions, or anything you want to count while working. Reserve a key to count without switching windows or interrupting your work.
+# Counter — a quiet tally counter for Omarchy
 
-The bar shows only the number. Click it for Reset, Undo and a key chooser: click the key, press your preferred key, then Apply. Escape cancels selection. One press counts once; holding the key does not repeat. The total and selected key survive plugin and desktop restarts.
+Count azkar, repetitions, or everyday tallies while you work. Reserve one key to add a count without switching windows or opening a popup.
 
-<img src="assets/panel.png" width="340" alt="Counter panel with a numeric total, Reset and Undo buttons, and the key chooser">
+The bar shows only the number. Click it for Reset, Undo and a key chooser: click the displayed key, press your preferred key, then Apply. Your total and selected key stay saved across restarts.
 
-## Requirements
+**[Install Counter](#-installation)** · Built for Omarchy's native Quickshell plugin system.
 
-- Omarchy's Quickshell plugin system and native bar components. Tested on **Omarchy 4.0.4**.
-- **Hyprland 0.56.2** with the Lua binding API; older Hyprlang-only desktops are unsupported.
-- **Quickshell 0.3.1**, including its Wayland shortcut inhibitor.
-- **Python 3.11+**, `libxkbcommon`, and `hyprctl` on PATH. No extra Python packages.
+<img src="assets/panel.png" width="340" alt="Counter's native panel with a saved total, Reset and Undo buttons, and the counting-key chooser">
 
-These are the desktop versions actually tested. Newer versions may work, but changes to Omarchy's shared components can require maintenance. This is a session counter; the chosen key's normal action is reserved for counting while the plugin is enabled. Login/lock screens and apps that inhibit global shortcuts are outside that guarantee.
+*The real panel, captured in an isolated Omarchy session. Its appearance follows your desktop theme.*
 
-## Install
+## <img src="readme-assets/icons/features.svg" width="24" height="24" alt=""> Features
 
-After this repository is published:
+- **Count without changing focus.** The chosen key adds one silently; holding it does not repeatedly count.
+- **Choose the key by pressing it.** The chooser captures your selection, checks desktop shortcut conflicts and lets you review it before applying.
+- **Correct or restart a tally.** Undo subtracts one without going below zero. Reset explicitly starts again at zero.
+- **Keep your place.** Locked, atomic saves preserve the total and key; updates and removal retain your data for reinstalling.
+- **Use the same tally across monitors.** One service owns the binding, even when several bars display the count.
+
+## <img src="readme-assets/icons/installation.svg" width="24" height="24" alt=""> Installation
+
+Tested with **Omarchy 4.0.4**, **Hyprland 0.56.2** and **Quickshell 0.3.1**. Counter requires the Lua binding API and Quickshell's Wayland shortcut inhibitor; older Hyprlang-only desktops are unsupported. Python 3.11+, `libxkbcommon` and `hyprctl` must be available. No extra Python packages are needed.
 
 ```sh
 omarchy plugin add https://github.com/yaqyn/omarchy-counter.git --enable
 ```
 
-F1 is the default. Existing shortcuts are preserved: if F1 conflicts, the panel explains the conflict and lets you select another key. The chooser temporarily inhibits desktop shortcuts while listening so a selection does not trigger another action. Modifier keys alone cannot be selected; Escape is reserved for cancellation.
+A number appears in your bar. **F1 is the default counting key**, so its usual app action is reserved for counting while Counter is enabled. Existing desktop shortcuts are preserved: if F1 conflicts, open the panel and choose another key.
 
-There is no installer script, root access, separate executable installation or change to your Hyprland configuration. The repository itself is the plugin.
+There is no installer script, root access, separate executable installation or permanent edit to your Hyprland configuration. Newer desktop versions may work, but changes to Omarchy's shared UI components can require maintenance.
 
-## Update, disable and remove
+## <img src="readme-assets/icons/launch.svg" width="24" height="24" alt=""> Quick start
+
+1. Press **F1** once. The number in the bar increases by one, without opening the panel.
+2. Click the number to see the controls.
+3. To change the key, click **F1**, press your preferred key, then click **Apply**. Escape cancels selection.
+4. Use **Undo** to correct one press or **Reset** to start a new tally.
+
+The key is consumed before reaching your apps, including when Shift, Ctrl or Alt is held. Modifier keys alone cannot be selected; Escape is reserved for cancelling the chooser. Login/lock screens and apps that inhibit global shortcuts are outside this active-session guarantee.
+
+To stop reserving the key:
+
+```sh
+omarchy plugin disable yaqyn.counter
+```
+
+## <img src="readme-assets/icons/usage.svg" width="24" height="24" alt=""> Usage
+
+### Update or remove
 
 ```sh
 omarchy plugin update yaqyn.counter
 omarchy restart shell
 
-omarchy plugin disable yaqyn.counter
 omarchy plugin enable yaqyn.counter
-
 omarchy plugin remove yaqyn.counter
 ```
 
-Disable and removal release the counting key. Updates keep your saved state; restart the shell after an update to clear cached QML components. Disabling or removing the plugin preserves your total and selected key for reinstalling. To erase that data too, remove `${XDG_STATE_HOME:-$HOME/.local/state}/counter` **after** removing the plugin.
+Restart the shell after an update to clear cached QML components. Disabling and removing the plugin release the counting key. Your saved total and key remain available if you reinstall.
 
-## Data and architecture
+### Troubleshooting
 
-Persistent data lives in `${XDG_STATE_HOME:-$HOME/.local/state}/counter`:
+| Symptom | Check and remedy |
+| --- | --- |
+| Key already used | Choose another key. A shortcut using the same key with any modifier conflicts because Counter ignores modifiers. Physical keycode shortcuts currently require a manual conflict check. |
+| Capture unavailable | Close and reopen the panel. The compositor must grant the shortcut inhibitor; selection fails safely if it cannot. |
+| Saved count unreadable | Inspect or back up the `count` file before Reset. Write failures can indicate full storage or incorrect permissions. |
+| Key unavailable after a change | Read the inline error and check `hyprctl configerrors`. Resolve desktop/dependency errors, then restart the shell. |
+
+## <img src="readme-assets/icons/configuration.svg" width="24" height="24" alt=""> Configuration
+
+Use the panel to choose the key. Persistent files live in `${XDG_STATE_HOME:-$HOME/.local/state}/counter`:
 
 | File | Purpose |
 | --- | --- |
@@ -51,15 +80,30 @@ Persistent data lives in `${XDG_STATE_HOME:-$HOME/.local/state}/counter`:
 | `settings.json` | Versioned counting-key preference |
 | `service.json` | Local service status for the panel |
 
-Counts and settings use locked, atomic, flushed writes. Invalid count data is preserved until you explicitly Reset. Key changes validate conflicts, verify the registered binding, and restore the previous runtime key and saved settings if they fail.
+Invalid count data is preserved until you explicitly Reset. To erase all saved data, remove this directory **after** removing the plugin. Disabling or removing Counter alone keeps it.
 
-One event-driven Python helper registers the key for the entire compositor, independent of how many monitors show the widget. It listens for reloads through Hyprland's event socket, and waits without polling. Each press runs a small increment command. Registration belongs to a specific service instance; old teardown cannot remove a newer instance's binding. Cleanup uses `hyprctl` directly so it still works after the plugin directory has been removed.
+## <img src="readme-assets/icons/architecture.svg" width="24" height="24" alt=""> Architecture
 
-All commands stay on your machine. The plugin needs no network connection, credentials or telemetry. Like other Omarchy plugins it runs with your user permissions, not in a sandbox.
+`Service.qml` starts one event-driven Python helper for the compositor. It registers the chosen key through Hyprland's Lua API and listens for desktop reloads through the event socket, without polling. Each press runs `counter.py increment`; the bar observes the saved count file.
 
-## Development and verification
+Key changes validate conflicts, verify the new binding and roll back the previous runtime key and settings if the change fails. Ownership tokens keep old teardown from removing a newer binding. Cleanup calls `hyprctl` directly, so it still works after the plugin directory disappears during removal.
+
+| Source | Responsibility |
+| --- | --- |
+| [BarWidget.qml](BarWidget.qml) | Numeric label, state observation and panel lifecycle |
+| [Panel.qml](Panel.qml) | Native controls, capture and inline feedback |
+| [KeyCapture.js](KeyCapture.js) | Translate Qt key events into XKB key names |
+| [Service.qml](Service.qml) | Singleton helper lifetime and removal cleanup |
+| [counter.py](counter.py) | Persistence, validation and binding ownership |
+
+## <img src="readme-assets/icons/verification.svg" width="24" height="24" alt=""> Verification
+
+Get the source, then run the checks from its root:
 
 ```sh
+git clone https://github.com/yaqyn/omarchy-counter.git
+cd omarchy-counter
+
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
 /usr/lib/qt6/bin/qmltestrunner -platform offscreen -input tests/qml
 omarchy plugin validate .
@@ -67,22 +111,28 @@ uvx --from ruff==0.17.1 ruff check .
 uvx --from ruff==0.17.1 ruff format --check .
 ```
 
-For an opt-in real desktop integration test:
+Qt's test runner and `uv` are optional development tools, not runtime requirements. The local suite covers concurrent presses, corrupted state, permission/disk failures, shortcut conflicts, rollback and Qt key mappings.
+
+For native install/update/removal, two outputs, helper recovery and desktop restart checks:
 
 ```sh
 python3 tests/desktop.py --run --keep
 ```
 
-This starts a temporary **nested desktop window**, a private D-Bus session and an isolated Omarchy configuration. It tests native install/disable/enable/removal, two outputs, reload recovery and saved data without modifying your live counter. It requires an active Wayland desktop and the Omarchy tools. `--keep` retains logs under the printed temporary path.
+This opt-in test starts a **nested desktop window**, private D-Bus session and temporary configuration. It does not reset your live counter. It requires an active Wayland desktop and the Omarchy tools; `--keep` retains logs at the printed path.
 
-Build a deterministic archive from a clean committed checkout with `python3 scripts/release.py`. See [verification coverage](docs/VERIFICATION.md) for evidence and remaining hardware checks, [release notes](CHANGELOG.md), and [contributing](CONTRIBUTING.md). Report bugs with desktop versions, steps and relevant errors; do not attach private desktop screenshots or full environment dumps.
+See [verification coverage](docs/VERIFICATION.md) for tested versions, evidence and remaining hardware checks. Build a deterministic archive from a clean committed checkout with `python3 scripts/release.py`.
 
-## Troubleshooting
+## <img src="readme-assets/icons/security.svg" width="24" height="24" alt=""> Security and limitations
 
-- **Key conflict:** choose another key. The counter ignores Shift/Ctrl/Alt, so a shortcut using the same named key with any modifier is a conflict. Physical keycode shortcuts currently require a manual conflict check.
-- **Capture unavailable:** close/reopen the panel. The compositor must grant the shortcut inhibitor; the chooser fails safely if it cannot.
-- **Unreadable saved count:** inspect or back up the `count` file before Reset. Write errors can mean full storage or incorrect permissions.
-- **Key absent after a change:** inspect the inline error and `hyprctl configerrors`. Restart the shell after resolving desktop or dependency errors.
-- **Unsupported desktop version:** use a tested Omarchy/Hyprland/Quickshell combination. This plugin deliberately uses the native shell UI rather than shipping its own desktop components.
+Counter needs no network connection, credentials or telemetry during normal use. Like other Omarchy plugins, it runs with your user permissions rather than in a sandbox. The chooser temporarily inhibits desktop shortcuts only while listening for a selection.
 
-MIT licensed. Built and maintained by Abdulrahman M. Yaqyn.
+The tested desktop combination is documented above. Physical reboot, mixed-DPI hardware, different keyboard models and full non-Latin-layout interaction still need broader verification; Qt's non-Latin key-name mapping has automated coverage. See the [verification record](docs/VERIFICATION.md) before making compatibility assumptions.
+
+## <img src="readme-assets/icons/contributing.svg" width="24" height="24" alt=""> Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [DESIGN.md](DESIGN.md). Keep ordinary counting silent, preserve the existing controls and add regression coverage for behavior changes. Report bugs through [GitHub issues](https://github.com/yaqyn/omarchy-counter/issues), with desktop versions and reproducible steps; omit private screenshots and full environment dumps.
+
+## <img src="readme-assets/icons/license.svg" width="24" height="24" alt=""> License
+
+[MIT](LICENSE) · Built and maintained by Abdulrahman M. Yaqyn.
