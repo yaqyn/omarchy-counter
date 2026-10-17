@@ -14,3 +14,6 @@ The count file is authoritative for the total; the versioned state/settings.json
 
 ## Verification
 Isolated Python regression tests cover concurrency, damaged state, atomic-write failure, key validation/conflicts, timeout, malformed desktop responses and rollback. Runtime checks cover clean Hyprland configuration, native panel rendering, keyboard traversal, a successful captured F1/F8/F1 roundtrip, Escape cancellation, modifier handling and capture of the active counting key without incrementing. No browser implementation is involved. Real counter values are not reset during tests.
+
+## Documentation identity
+The public cover uses a count and keycap motif, with a slate background and pale blue accent. Exact values, typography and canonical heading icon rules live in [readme-assets/STYLE.md](readme-assets/STYLE.md). This identity applies to documentation only; the plugin continues to inherit the user's Omarchy theme.
