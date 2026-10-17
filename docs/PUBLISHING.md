@@ -2,7 +2,7 @@
 
 Target repository: `https://github.com/yaqyn/omarchy-counter`.
 
-The source is prepared locally. No repository, release or marketplace submission is created by these instructions alone.
+The repository is public, with the cover, README and CI published. Formal versioned releases and Omarchy marketplace submission remain separate steps. See [verification evidence](VERIFICATION.md) for the published commit and public installation check.
 
 ## Before uploading
 

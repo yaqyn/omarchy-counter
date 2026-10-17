@@ -10,7 +10,7 @@ Local release-candidate checks performed on 2026-10-17. This records evidence, n
 | Hyprland | 0.56.2, Lua configuration |
 | Quickshell | 0.3.1 |
 | Qt | 6.11.2 |
-| Python | 3.11, 3.14 and 3.15; 3.13 additionally configured in CI |
+| Python | 3.11, 3.14 and 3.15 locally; 3.11, 3.13 and 3.14 in GitHub Actions |
 
 ## Automated local checks
 
@@ -24,7 +24,7 @@ Local release-candidate checks performed on 2026-10-17. This records evidence, n
 
 `tests/desktop.py --run --keep` starts a nested Hyprland compositor and an Omarchy shell on a private D-Bus session, with temporary HOME, config, state and runtime directories. It never installs into the real user's configuration.
 
-The test exercises the real native `omarchy plugin add`, `update`, `disable`, `enable` and `remove` commands. Git rewrites the test HTTPS URL to a temporary local source repository, so this validates installation mechanics without making a network request or publishing anything. Public GitHub connectivity remains a post-publication check.
+The test exercises the real native `omarchy plugin add`, `update`, `disable`, `enable` and `remove` commands. Git rewrites the test HTTPS URL to a temporary local source repository, so this validates installation mechanics without making a network request or publishing anything. Public GitHub installation was additionally verified after publication; see below.
 
 Twelve scenarios passed:
 
@@ -43,6 +43,14 @@ Twelve scenarios passed:
 
 These use virtual outputs and an installed software stack on one host. Synthetic key injection into an inactive nested compositor is not treated as evidence of physical-key behavior.
 
+## Public publication checks
+
+On 2026-10-17, [GitHub Actions](https://github.com/yaqyn/omarchy-counter/actions/runs/39058872360) passed for commit `6b73d6b4555af1240e87891998dee0cf96e421b4`: all three Python jobs (3.11, 3.13, 3.14) and the Qt job succeeded.
+
+The real `omarchy plugin add https://github.com/yaqyn/omarchy-counter.git --enable` command was then exercised in a fresh isolated desktop without a Git URL rewrite. The installed commit matched that exact public commit, and registration succeeded. All twelve desktop scenarios passed; upgrade tests continued against an isolated fixture aligned with the public history, without changing the public repository.
+
+GitHub's rendered README was checked for the cover and working installation anchor. Local and remote `main` matched after pushing. Formal release upload and marketplace submission are separate publication steps.
+
 ## Live interaction checks
 
 The local prototype's selected-key, Apply, cancellation and feedback paths were checked in the live desktop through screenshots and keyboard navigation. The final package was rendered in the nested desktop, then installed in the live desktop with its saved count and key preserved, one active binding, healthy service status and no Hyprland configuration errors. Ordinary counting remains an active-session shortcut rather than a kernel-level keyboard remap.
@@ -54,6 +62,5 @@ The local prototype's selected-key, Apply, cancellation and feedback paths were 
 - Physical laptop Fn/media keys and multiple keyboard models.
 - End-to-end typing/capture under non-Latin layouts; the key-name mapping itself has automated coverage.
 - Older/newer Omarchy, Hyprland and Quickshell versions beyond the tested combination.
-- Actual GitHub Actions results and public Git installation after repository publication.
 
 Record these as unverified until performed. Do not describe the plugin as universally tested or make an unlimited-production-readiness claim.
