@@ -25,10 +25,10 @@ Listing draft:
 - Name: Counter
 - ID: `yaqyn.counter`
 - Author: Abdulrahman M. Yaqyn
-- Category: Productivity / Info, according to available form choices
-- Tags: counter, azkar, tally, productivity, keyboard, bar-widget
+- Category: Productivity
+- Tags: Bar, Hyprland, Quickshell
 - Summary: A quiet tally counter for azkar, repetitions and everyday counting, with a reserved key and native controls.
 - License: MIT
-- Preview: `assets/panel.png`
+- Preview: `preview.png` (an exact copy of `assets/panel.png`, at the root for marketplace detection)
 
 Marketplace approval is a separate maintainer action. See the [publishing requirements](https://plugins.omarchy.org/publish.html) and [development reference](https://plugins.omarchy.org/develop.html).

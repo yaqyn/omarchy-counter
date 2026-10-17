@@ -1,6 +1,6 @@
 # Counter artwork
 
-Original vector cover: `cover.svg`, 1280 × 560. The count and F1 key illustrate one press adding one count; this is cover artwork, not a screenshot. `assets/panel.png` is the real panel captured in an isolated Omarchy session.
+Original vector cover: `cover.svg`, 1280 × 560. The count and F1 key illustrate one press adding one count; this is cover artwork, not a screenshot. `assets/panel.png` is the real panel captured in an isolated Omarchy session. The root `preview.png` is an identical copy for Omarchy marketplace detection.
 
 | Color | Role |
 | --- | --- |
