@@ -12,9 +12,9 @@ Item {
     // Teardown must survive removal of this directory and Quickshell killing the helper.
     Component.onDestruction: {
         stopping = true;
-        Quickshell.execDetached(["hyprctl", "eval", "local token = " + JSON.stringify(root.ownerToken) + "; " + "_G.qv_azkar_cancelled = _G.qv_azkar_cancelled or {}; _G.qv_azkar_cancelled[token] = true; " + "local v = _G.qv_azkar; if v and v.token == token then " + "pcall(function() v.binding:remove() end); _G.qv_azkar = nil end"]);
+        Quickshell.execDetached(["hyprctl", "eval", "local token = " + JSON.stringify(root.ownerToken) + "; " + "_G.yaqyn_counter_cancelled = _G.yaqyn_counter_cancelled or {}; _G.yaqyn_counter_cancelled[token] = true; " + "local v = _G.yaqyn_counter; if v and v.token == token then " + "pcall(function() v.binding:remove() end); _G.yaqyn_counter = nil end"]);
     }
-    readonly property string backend: decodeURIComponent(Qt.resolvedUrl("azkar.py").toString().slice(7))
+    readonly property string backend: decodeURIComponent(Qt.resolvedUrl("counter.py").toString().slice(7))
     property int failures: 0
     Timer {
         id: retry
@@ -33,7 +33,7 @@ Item {
                 root.ownerToken = root.newToken();
                 retry.restart();
             } else if (code !== 0)
-                console.warn("Azkar service stopped; check python3, libxkbcommon and Hyprland Lua support.");
+                console.warn("Counter service stopped; check python3, libxkbcommon and Hyprland Lua support.");
         }
     }
 }

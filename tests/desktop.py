@@ -92,7 +92,7 @@ def main():
         return [
             item
             for item in json.loads(run("hyprctl", "-j", "binds"))
-            if item.get("description") == "Azkar: count once"
+            if item.get("description") == "Counter: count once"
         ]
 
     def key_is(key):
@@ -106,7 +106,7 @@ def main():
         )
         signature = next((root / "hypr").iterdir()).name
         env.update(HYPRLAND_INSTANCE_SIGNATURE=signature, WAYLAND_DISPLAY="wayland-1")
-        plugin = root / ".config/omarchy/plugins/qv.azkar"
+        plugin = root / ".config/omarchy/plugins/yaqyn.counter"
         source = root / "source"
         shutil.copytree(
             REPO,
@@ -131,7 +131,7 @@ def main():
             )
 
         commit_fixture("Installation test fixture")
-        url = "https://github.com/yaqyn/omarchy-azkar.git"
+        url = "https://github.com/yaqyn/omarchy-counter.git"
         env.update(
             GIT_CONFIG_COUNT="1",
             GIT_CONFIG_KEY_0="url." + source.as_uri() + ".insteadOf",
@@ -184,11 +184,11 @@ def main():
         run("omarchy", "plugin", "add", url, "--enable", "--yes")
         wait_for(lambda: key_is("F1"))
         record("fresh isolated installation registers one consuming, nonrepeating F1 binding")
-        backend = plugin / "azkar.py"
+        backend = plugin / "counter.py"
         run(sys.executable, str(backend), "increment")
         assert run(sys.executable, str(backend)) == "1"
         assert not own()[0]["non_consuming"] and not own()[0]["repeat"]
-        assert run("hyprctl", "eval", "assert(_G.qv_azkar.binding.ignore_mods)") == "ok"
+        assert run("hyprctl", "eval", "assert(_G.yaqyn_counter.binding.ignore_mods)") == "ok"
         record("saved count and actual consuming, nonrepeating, modifier-ignoring binding verified")
         run("hyprctl", "output", "create", "headless", "QA-2")
         wait_for(lambda: len(json.loads(run("hyprctl", "-j", "monitors"))) == 2)
@@ -206,24 +206,24 @@ def main():
         (source / "manifest.json").write_text(json.dumps(update))
         run("git", "-C", str(source), "add", "manifest.json")
         commit_fixture("Upgrade test fixture")
-        run("omarchy", "plugin", "update", "qv.azkar", "--yes")
+        run("omarchy", "plugin", "update", "yaqyn.counter", "--yes")
         wait_for(lambda: key_is("F8"))
         assert json.loads((plugin / "manifest.json").read_text())["version"] == "1.4.1"
         assert run(sys.executable, str(backend)) == "1"
         record("native git update preserves the total and selected key")
-        lease = root / ("qv.azkar-" + signature) / "lease.json"
+        lease = root / ("yaqyn.counter-" + signature) / "lease.json"
         old_pid = json.loads(lease.read_text())["pid"]
         os.kill(old_pid, signal.SIGKILL)
         wait_for(lambda: lease.exists() and json.loads(lease.read_text())["pid"] != old_pid)
         wait_for(lambda: key_is("F8"))
         record("helper crash is recovered without duplicate bindings")
         for _ in range(10):
-            run("omarchy", "plugin", "disable", "qv.azkar")
+            run("omarchy", "plugin", "disable", "yaqyn.counter")
             wait_for(lambda: not own())
-            run("omarchy", "plugin", "enable", "qv.azkar")
+            run("omarchy", "plugin", "enable", "yaqyn.counter")
             wait_for(lambda: key_is("F8"))
         record("ten native disable/enable cycles release and restore the key")
-        run("omarchy-shell", "shell", "summon", "qv.azkar")
+        run("omarchy-shell", "shell", "summon", "yaqyn.counter")
         time.sleep(0.3)
         run(sys.executable, str(backend), "set-key", "F9")
         assert key_is("F9")
@@ -234,7 +234,7 @@ def main():
             message in log for message in ("ReferenceError", "TypeError", "Unable to assign")
         )
         record("native panel loads without QML type or binding errors")
-        run("omarchy-shell", "shell", "hide", "qv.azkar")
+        run("omarchy-shell", "shell", "hide", "yaqyn.counter")
         run("hyprctl", "output", "remove", "QA-2")
         assert key_is("F9")
         record("monitor removal does not remove the singleton key service")
@@ -260,12 +260,12 @@ def main():
         assert run(sys.executable, str(backend)) == "1"
         record("full nested compositor and shell restart preserves total and key")
         count = run(sys.executable, str(backend))
-        saved = (root / "state/azkar/settings.json").read_bytes()
-        run("omarchy", "plugin", "remove", "qv.azkar", "--yes")
+        saved = (root / "state/counter/settings.json").read_bytes()
+        run("omarchy", "plugin", "remove", "yaqyn.counter", "--yes")
         wait_for(lambda: not own())
         assert not plugin.exists()
-        assert (root / "state/azkar/settings.json").read_bytes() == saved
-        assert (root / "state/azkar/count").read_text().strip() == count
+        assert (root / "state/counter/settings.json").read_bytes() == saved
+        assert (root / "state/counter/count").read_text().strip() == count
         record("native removal releases the key after directory removal and preserves user data")
         print(json.dumps({"passed": results, "count": len(results)}, indent=2))
     finally:

@@ -8,7 +8,7 @@ import "KeyCapture.js" as Capture
 
 Panel {
     id: root
-    moduleName: "qv.azkar"
+    moduleName: "yaqyn.counter"
     manageIpc: false
 
     property var anchorItem: null
@@ -22,7 +22,7 @@ Panel {
     property bool failed: false
     readonly property bool busy: operation.running || readKey.running
     readonly property bool hasCount: hostWidget && /^[0-9]+$/.test(hostWidget.count) && Number(hostWidget.count) > 0
-    readonly property string executable: decodeURIComponent(Qt.resolvedUrl("azkar.py").toString().slice(7))
+    readonly property string executable: decodeURIComponent(Qt.resolvedUrl("counter.py").toString().slice(7))
 
     function open() {
         capturing = false;

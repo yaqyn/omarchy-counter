@@ -1,10 +1,10 @@
-# Azkar counter
+# Counter
 
-A quiet counter for dhikr while you work in Omarchy. Press one chosen key to count; your typing, focus and media stay undisturbed.
+Counter is a quiet tally counter for Omarchy—for azkar, repetitions, or anything you want to count while working. Reserve a key to count without switching windows or interrupting your work.
 
 The bar shows only the number. Click it for Reset, Undo and a key chooser: click the key, press your preferred key, then Apply. Escape cancels selection. One press counts once; holding the key does not repeat. The total and selected key survive plugin and desktop restarts.
 
-<img src="assets/panel.png" width="340" alt="Azkar counter panel with a numeric total, Reset and Undo buttons, and the key chooser">
+<img src="assets/panel.png" width="340" alt="Counter panel with a numeric total, Reset and Undo buttons, and the key chooser">
 
 ## Requirements
 
@@ -20,7 +20,7 @@ These are the desktop versions actually tested. Newer versions may work, but cha
 After this repository is published:
 
 ```sh
-omarchy plugin add https://github.com/yaqyn/omarchy-azkar.git --enable
+omarchy plugin add https://github.com/yaqyn/omarchy-counter.git --enable
 ```
 
 F1 is the default. Existing shortcuts are preserved: if F1 conflicts, the panel explains the conflict and lets you select another key. The chooser temporarily inhibits desktop shortcuts while listening so a selection does not trigger another action. Modifier keys alone cannot be selected; Escape is reserved for cancellation.
@@ -30,20 +30,20 @@ There is no installer script, root access, separate executable installation or c
 ## Update, disable and remove
 
 ```sh
-omarchy plugin update qv.azkar
+omarchy plugin update yaqyn.counter
 omarchy restart shell
 
-omarchy plugin disable qv.azkar
-omarchy plugin enable qv.azkar
+omarchy plugin disable yaqyn.counter
+omarchy plugin enable yaqyn.counter
 
-omarchy plugin remove qv.azkar
+omarchy plugin remove yaqyn.counter
 ```
 
-Disable and removal release the counting key. Updates keep your saved state; restart the shell after an update to clear cached QML components. Disabling or removing the plugin preserves your total and selected key for reinstalling. To erase that data too, remove `${XDG_STATE_HOME:-$HOME/.local/state}/azkar` **after** removing the plugin.
+Disable and removal release the counting key. Updates keep your saved state; restart the shell after an update to clear cached QML components. Disabling or removing the plugin preserves your total and selected key for reinstalling. To erase that data too, remove `${XDG_STATE_HOME:-$HOME/.local/state}/counter` **after** removing the plugin.
 
 ## Data and architecture
 
-Persistent data lives in `${XDG_STATE_HOME:-$HOME/.local/state}/azkar`:
+Persistent data lives in `${XDG_STATE_HOME:-$HOME/.local/state}/counter`:
 
 | File | Purpose |
 | --- | --- |

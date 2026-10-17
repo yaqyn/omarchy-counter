@@ -26,7 +26,7 @@ files = sorted(name for name in git("ls-files", "-z").decode().split("\0") if na
 epoch = int(git("show", "-s", "--format=%ct", "HEAD"))
 output = root / "dist"
 output.mkdir(exist_ok=True)
-name = f"omarchy-azkar-{version}"
+name = f"omarchy-counter-{version}"
 archive = output / f"{name}.tar.gz"
 with archive.open("wb") as raw:
     with gzip.GzipFile(filename="", fileobj=raw, mode="wb", mtime=epoch) as compressed:

@@ -6,12 +6,12 @@ import qs.Ui
 
 BarWidget {
     id: root
-    moduleName: "qv.azkar"
+    moduleName: "yaqyn.counter"
     property string count: "—"
     property string serviceError: ""
     FileView {
         id: health
-        path: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/azkar/service.json"
+        path: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/counter/service.json"
         watchChanges: true
         onFileChanged: reload()
         onLoaded: {
@@ -62,7 +62,7 @@ BarWidget {
     }
     FileView {
         id: counter
-        path: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/azkar/count"
+        path: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/counter/count"
         watchChanges: true
         onFileChanged: reload()
         onLoaded: {
@@ -86,6 +86,6 @@ BarWidget {
             if (button === Qt.LeftButton)
                 root.toggle();
         }
-        Accessible.name: "Azkar counter: " + root.count
+        Accessible.name: "Counter: " + root.count
     }
 }

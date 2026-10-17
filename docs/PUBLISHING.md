@@ -1,6 +1,6 @@
 # Publishing checklist
 
-Target repository: `https://github.com/yaqyn/omarchy-azkar`.
+Target repository: `https://github.com/yaqyn/omarchy-counter`.
 
 The source is prepared locally. No repository, release or marketplace submission is created by these instructions alone.
 
@@ -22,12 +22,12 @@ The source is prepared locally. No repository, release or marketplace submission
 
 Listing draft:
 
-- Name: Azkar counter
-- ID: `qv.azkar`
+- Name: Counter
+- ID: `yaqyn.counter`
 - Author: Abdulrahman M. Yaqyn
 - Category: Productivity / Info, according to available form choices
-- Tags: counter, dhikr, keyboard, bar-widget
-- Summary: A quiet dhikr counter with a reserved key, a numeric bar widget and native controls.
+- Tags: counter, azkar, tally, productivity, keyboard, bar-widget
+- Summary: A quiet tally counter for azkar, repetitions and everyday counting, with a reserved key and native controls.
 - License: MIT
 - Preview: `assets/panel.png`
 

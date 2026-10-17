@@ -18,7 +18,7 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
-STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "azkar"
+STATE = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "counter"
 SETTINGS = STATE / "settings.json"
 EXECUTABLE = Path(__file__).resolve()
 RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", "/run/user/" + str(os.getuid())))
@@ -26,8 +26,8 @@ SIGNATURE = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
 # The compositor chooses this value, but never trust it as a path component.
 if SIGNATURE and not re.fullmatch(r"[A-Za-z0-9_.-]+", SIGNATURE):
     SIGNATURE = ""
-SESSION = RUNTIME / ("qv.azkar-" + (SIGNATURE or "no-session"))
-DESCRIPTION = "Azkar: count once"
+SESSION = RUNTIME / ("yaqyn.counter-" + (SIGNATURE or "no-session"))
+DESCRIPTION = "Counter: count once"
 
 
 class CounterError(Exception):
@@ -183,11 +183,11 @@ def register(key, token):
     command = shlex.join([sys.executable, str(EXECUTABLE), "increment"])
     # Keep the actual binding object, so removal cannot unbind someone else's key.
     code = (
-        f"if _G.qv_azkar_cancelled and _G.qv_azkar_cancelled[{lua_string(token)}] then return end; "
-        "local old = _G.qv_azkar; if old then pcall(function() old.binding:remove() end); _G.qv_azkar = nil end; "
+        f"if _G.yaqyn_counter_cancelled and _G.yaqyn_counter_cancelled[{lua_string(token)}] then return end; "
+        "local old = _G.yaqyn_counter; if old then pcall(function() old.binding:remove() end); _G.yaqyn_counter = nil end; "
         f"local new = hl.bind({lua_string(key)}, hl.dsp.exec_cmd({lua_string(command)}), "
         f"{{ description = {lua_string(DESCRIPTION)}, ignore_mods = true }}); "
-        f"_G.qv_azkar = {{ token = {lua_string(token)}, binding = new }}"
+        f"_G.yaqyn_counter = {{ token = {lua_string(token)}, binding = new }}"
     )
     response = hyprctl("eval", code)
     if response != "ok":
@@ -205,17 +205,17 @@ def register(key, token):
 def unregister(token, cancel=False):
     prefix = (
         (
-            "_G.qv_azkar_cancelled = _G.qv_azkar_cancelled or {}; "
-            f"_G.qv_azkar_cancelled[{lua_string(token)}] = true; "
+            "_G.yaqyn_counter_cancelled = _G.yaqyn_counter_cancelled or {}; "
+            f"_G.yaqyn_counter_cancelled[{lua_string(token)}] = true; "
         )
         if cancel
         else ""
     )
     response = hyprctl(
         "eval",
-        prefix + "local v = _G.qv_azkar; "
+        prefix + "local v = _G.yaqyn_counter; "
         f"if v and v.token == {lua_string(token)} then "
-        "pcall(function() v.binding:remove() end); _G.qv_azkar = nil end",
+        "pcall(function() v.binding:remove() end); _G.yaqyn_counter = nil end",
     )
     if response != "ok":
         raise CounterError("Could not release the counting key.")
