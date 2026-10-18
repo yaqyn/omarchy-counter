@@ -72,7 +72,7 @@ def read_count():
     return int(value)
 
 
-def change_count(action):
+def change_count(action, amount=1):
     with locked("lock"):
         if action == "reset":
             value = 0  # Explicit reset can also recover a damaged state file.
@@ -80,9 +80,9 @@ def change_count(action):
             count = read_count()
             if action == "show":
                 return count
-            if action == "increment" and count >= 10**100 - 1:
+            if action in {"increment", "add"} and count > 10**100 - 1 - amount:
                 raise CounterError("Count limit reached. Reset to start again.")
-            value = count + 1 if action == "increment" else max(0, count - 1)
+            value = count + amount if action in {"increment", "add"} else max(0, count - 1)
         atomic_write(STATE / "count", f"{value}\n")
         return value
 
@@ -381,6 +381,7 @@ def main():
         choices=(
             "show",
             "increment",
+            "add",
             "undo",
             "reset",
             "key",
@@ -396,6 +397,9 @@ def main():
             parser.error("service ownership token must be 32 hexadecimal characters")
         if args.action == "release" and args.key_name is None:
             parser.error("release requires a service ownership token")
+    elif args.action == "add":
+        if args.key_name is None or not re.fullmatch(r"[1-9][0-9]{0,99}", args.key_name):
+            parser.error("add requires one positive integer")
     elif (args.action == "set-key") != (args.key_name is not None):
         parser.error("set-key requires one key name; other commands take no key name")
     try:
@@ -408,8 +412,9 @@ def main():
         elif args.action == "key":
             print(current_key())
         else:
-            value = change_count(args.action)
-            if args.action == "show":
+            amount = int(args.key_name) if args.action == "add" else 1
+            value = change_count(args.action, amount)
+            if args.action in {"show", "add"}:
                 print(value)
     except (CounterError, OSError, OverflowError) as error:
         message = (

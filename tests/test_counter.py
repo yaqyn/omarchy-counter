@@ -47,6 +47,12 @@ class CounterTests(unittest.TestCase):
         self.assertEqual(counter.change_count("increment"), 1)
         self.assertEqual(counter.change_count("reset"), 0)
 
+    def test_adds_multiple_counts_without_crossing_the_limit(self):
+        self.assertEqual(counter.change_count("add", 25), 25)
+        (self.state / "count").write_text("9" * 100)
+        with self.assertRaises(counter.CounterError):
+            counter.change_count("add", 2)
+
     def test_damaged_counts_require_explicit_reset(self):
         for text in ("", "damaged", "-1", "2.5", "9" * 101):
             with self.subTest(text=text):

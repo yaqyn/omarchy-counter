@@ -86,6 +86,8 @@ Invalid count data is preserved until you explicitly Reset. To erase all saved d
 
 `Service.qml` starts one event-driven Python helper for the compositor. It registers the chosen key through Hyprland's Lua API and listens for desktop reloads through the event socket, without polling. Each press runs `counter.py increment`; the bar observes the saved count file.
 
+For a batch entry, run `python counter.py add 25`; it updates the same locked counter and prints the new total.
+
 Key changes validate conflicts, verify the new binding and roll back the previous runtime key and settings if the change fails. Ownership tokens keep old teardown from removing a newer binding. Cleanup calls `hyprctl` directly, so it still works after the plugin directory disappears during removal.
 
 | Source | Responsibility |
