@@ -82,6 +82,7 @@ class CounterTests(unittest.TestCase):
         with (
             patch.object(counter, "lease_token", return_value="a" * 32),
             patch.object(counter, "check_conflicts"),
+            patch.object(counter, "bindings", return_value=[]),
             patch.object(counter, "unregister") as unregister,
             patch.object(counter, "register") as register,
         ):
