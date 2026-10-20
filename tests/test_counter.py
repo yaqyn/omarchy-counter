@@ -39,7 +39,148 @@ class CounterTests(unittest.TestCase):
             "description": counter.DESCRIPTION,
             "non_consuming": False,
             "repeat": False,
+            "modmask": 0,
         } | changes
+
+    def test_goal_notifies_only_on_upward_crossing(self):
+        counter.set_goal(3)
+        with patch.object(counter, "notify_goal") as notify:
+            counter.change_count("add", 2)
+            notify.assert_not_called()
+            counter.change_count("add", 5)
+            notify.assert_called_once_with(3)
+            counter.change_count("increment")
+            self.assertEqual(notify.call_count, 1)
+            counter.change_count("reset")
+            counter.change_count("add", 3)
+            self.assertEqual(notify.call_count, 2)
+            counter.set_goal(0)
+            counter.change_count("add", 10)
+            self.assertEqual(notify.call_count, 2)
+
+    def test_goal_notification_closes_only_its_own_id_after_1500ms(self):
+        with (
+            patch.object(
+                counter.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "42\n")
+            ) as run,
+            patch.object(counter.time, "sleep") as sleep,
+        ):
+            counter.notify_goal(33)
+        self.assertIn("--expire-time=1500", run.call_args_list[0].args[0])
+        sleep.assert_called_once_with(1.5)
+        self.assertEqual(
+            run.call_args.args[0][-2:], ["org.freedesktop.Notifications.CloseNotification", "42"]
+        )
+
+    def test_unavailable_notifications_do_not_lose_counts(self):
+        counter.set_goal(1)
+        with patch.object(counter.subprocess, "run", side_effect=FileNotFoundError):
+            self.assertEqual(counter.change_count("increment"), 1)
+
+    def test_power_setting_releases_shortcuts_and_guards_queued_commands(self):
+        counter.change_count("add", 7)
+        with (
+            patch.object(counter, "lease_token", return_value="a" * 32),
+            patch.object(counter, "check_conflicts"),
+            patch.object(counter, "unregister") as unregister,
+            patch.object(counter, "register") as register,
+        ):
+            counter.set_enabled(False)
+            unregister.assert_called_once_with("a" * 32)
+            counter.keyboard_count("increment")
+            counter.keyboard_count("reset")
+            self.assertEqual(counter.read_count(), 7)
+            counter.set_key("F8")
+            register.assert_not_called()
+            counter.set_enabled(True)
+            register.assert_called_once_with("F8", "a" * 32)
+            counter.keyboard_count("increment")
+            self.assertEqual(counter.read_count(), 8)
+
+    def test_concurrent_goal_crossing_sends_one_notification(self):
+        counter.set_goal(5)
+        with patch.object(counter, "notify_goal") as notify:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+                list(pool.map(lambda _: counter.change_count("increment"), range(20)))
+            notify.assert_called_once_with(5)
+
+    def test_damaged_optional_goal_does_not_block_counting(self):
+        for value in (b"broken", b"-1", b"\xff\xfe"):
+            with self.subTest(value=value):
+                (self.state / "goal").write_bytes(value)
+                counter.change_count("reset")
+                self.assertEqual(counter.change_count("increment"), 1)
+                with self.assertRaises((counter.CounterError, UnicodeError)):
+                    counter.read_goal()
+        counter.set_goal(33)
+        self.assertEqual(counter.read_goal(), 33)
+
+    def test_failed_power_preference_write_restores_previous_shortcuts(self):
+        original = counter.atomic_write
+
+        def fail_enabled(path, text):
+            if path.name == "enabled":
+                raise OSError(errno.ENOSPC, "Full")
+            original(path, text)
+
+        with (
+            patch.object(counter, "lease_token", return_value="a" * 32),
+            patch.object(counter, "register") as register,
+            patch.object(counter, "unregister"),
+            patch.object(counter, "atomic_write", side_effect=fail_enabled),
+        ):
+            with self.assertRaises(OSError):
+                counter.set_enabled(False)
+            register.assert_called_once_with("F1", "a" * 32)
+            self.assertTrue(counter.counting_enabled())
+
+    def test_corrupted_power_preference_can_be_recovered(self):
+        (self.state / "enabled").write_bytes(b"\xff")
+        with (
+            patch.object(counter, "lease_token", return_value="a" * 32),
+            patch.object(counter, "register"),
+            patch.object(counter, "check_conflicts"),
+        ):
+            counter.set_enabled(True)
+        self.assertTrue(counter.counting_enabled())
+
+    def test_invalid_cli_goal_arguments_fail_without_tracebacks(self):
+        for value in ("-1", "1.5", "a", "9" * 101):
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "set-goal", value],
+                env=dict(os.environ, XDG_STATE_HOME=str(self.root)),
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn("Traceback", result.stderr)
+        self.assertFalse((self.state / "goal").exists())
+
+    def test_notification_wait_holds_neither_counter_nor_settings_lock(self):
+        counter.set_goal(1)
+        real_run = subprocess.run
+        results = []
+
+        def during_toast(_):
+            results.append(
+                real_run(
+                    [sys.executable, str(SCRIPT), "key-increment"],
+                    env=dict(os.environ, XDG_STATE_HOME=str(self.root)),
+                    capture_output=True,
+                    timeout=2,
+                )
+            )
+
+        with (
+            patch.object(
+                counter.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "42\n")
+            ),
+            patch.object(counter.time, "sleep", side_effect=during_toast),
+        ):
+            counter.keyboard_count("increment")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].returncode, 0)
+        self.assertEqual(counter.read_count(), 2)
 
     def test_first_run_and_zero_floor(self):
         self.assertEqual(counter.change_count("show"), 0)
@@ -258,10 +399,18 @@ class CounterTests(unittest.TestCase):
         with (
             patch.object(counter, "EXECUTABLE", self.root / 'quote " path ü.py'),
             patch.object(counter, "hyprctl", return_value="ok") as ipc,
-            patch.object(counter, "bindings", return_value=[self.own("F8")]),
+            patch.object(
+                counter,
+                "bindings",
+                return_value=[
+                    self.own("F8"),
+                    self.own("F8", description=counter.RESET_DESCRIPTION, modmask=5),
+                ],
+            ),
         ):
             counter.register("F8", "a" * 32)
-        self.assertIn("ignore_mods = true", ipc.call_args.args[1])
+        self.assertNotIn("ignore_mods = true", ipc.call_args.args[1])
+        self.assertIn("CTRL + SHIFT + F8", ipc.call_args.args[1])
         self.assertIn("ü.py", ipc.call_args.args[1])
 
 

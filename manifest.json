@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "yaqyn.counter",
   "name": "Counter",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "author": "Abdulrahman M. Yaqyn",
   "description": "A minimalist tally counter for azkar (Islamic remembrance), repetitions and everyday counting.",
   "kinds": [

@@ -1,6 +1,6 @@
 # Counter artwork
 
-Original vector cover: `cover.svg`, 1280 × 560. The count and F1 key illustrate one press adding one count; this is cover artwork, not a screenshot. `assets/panel.png` is the real panel captured in an isolated Omarchy session. The root `preview.png` is an identical copy for Omarchy marketplace detection.
+Original vector cover: `cover.svg`, 1280 × 560. The count and F1 key illustrate one press adding one count; this is cover artwork, not a screenshot. `assets/panel.png` is the real panel captured in an isolated Omarchy session. The root `preview.png` is a generated UI illustration based on the final panel, at its native 1672 × 941 resolution. It presents the count, Reset/Undo, power, goal and key controls without inventing features. This is an HD illustration, not a 4K render or a pixel-exact screenshot. The small footer identifies it as an illustration. The original vector cover is retained as a source/history asset; the README and marketplace use the UI illustration.
 
 | Color | Role |
 | --- | --- |

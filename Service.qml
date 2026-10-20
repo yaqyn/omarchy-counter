@@ -12,7 +12,7 @@ Item {
     // Teardown must survive removal of this directory and Quickshell killing the helper.
     Component.onDestruction: {
         stopping = true;
-        Quickshell.execDetached(["hyprctl", "eval", "local token = " + JSON.stringify(root.ownerToken) + "; " + "_G.yaqyn_counter_cancelled = _G.yaqyn_counter_cancelled or {}; _G.yaqyn_counter_cancelled[token] = true; " + "local v = _G.yaqyn_counter; if v and v.token == token then " + "pcall(function() v.binding:remove() end); _G.yaqyn_counter = nil end"]);
+        Quickshell.execDetached(["hyprctl", "eval", "local token = " + JSON.stringify(root.ownerToken) + "; " + "_G.yaqyn_counter_cancelled = _G.yaqyn_counter_cancelled or {}; _G.yaqyn_counter_cancelled[token] = true; " + "local v = _G.yaqyn_counter; if v and v.token == token then " + "pcall(function() v.binding:remove() end); pcall(function() v.reset:remove() end); _G.yaqyn_counter = nil end"]);
     }
     readonly property string backend: decodeURIComponent(Qt.resolvedUrl("counter.py").toString().slice(7))
     property int failures: 0

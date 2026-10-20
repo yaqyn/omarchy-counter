@@ -1,6 +1,8 @@
 # Verification record
 
-Local release-candidate checks performed on 2026-10-17. This records evidence, not a promise of compatibility with every Omarchy installation.
+Current 1.5 review: see [REVIEW-1.5.md](REVIEW-1.5.md) for the 2026-10-20 environment, 33-test Python matrix and expanded native/accessibility checks.
+
+The historical 1.4 record below describes local release-candidate checks performed on 2026-10-17. This records evidence, not a promise of compatibility with every Omarchy installation.
 
 ## Tested environment
 

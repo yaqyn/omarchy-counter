@@ -31,6 +31,8 @@ def main():
         action="store_true",
         help="Start a nested desktop window for integration tests",
     )
+    parser.add_argument("--bar-position", choices=("top", "bottom", "left", "right"), default="top")
+    parser.add_argument("--scale", type=int, choices=(1, 2), default=1)
     parser.add_argument("--keep", action="store_true", help="Keep isolated logs after the test")
     args = parser.parse_args()
     if not args.run:
@@ -71,7 +73,11 @@ def main():
     compositor_env = env | {"WAYLAND_DISPLAY": str(parent_display)}
     compositor_env.pop("HYPRLAND_INSTANCE_SIGNATURE", None)
     config = root / "hyprland.lua"
-    config.write_text('hl.monitor({output="", mode="1280x720@60", position="auto", scale=1})\n')
+    config.write_text(
+        'hl.monitor({output="", mode="1280x720@60", position="auto", scale='
+        + str(args.scale)
+        + "})\n"
+    )
 
     def start(command, name, environment=env):
         log = (root / name).open("w")
@@ -112,6 +118,31 @@ def main():
             REPO,
             source,
             ignore=shutil.ignore_patterns(".git", "__pycache__", "dist", ".ruff_cache"),
+        )
+        # Test-only IPC instrumentation is added to the isolated copy, never shipped.
+        panel_path = source / "Panel.qml"
+        panel_text = panel_path.read_text().rstrip()
+        panel_path.write_text(
+            panel_text[:-1]
+            + """
+    IpcHandler {
+        target: "counter-test"
+        function focusApply(): void { root.selectedKey = "F12"; Qt.callLater(function() { apply.forceActiveFocus(); }); }
+        function focusGoal(): void { goalInput.forceActiveFocus(); }
+        function saveGoal(value: string): void { goalInput.text = value; goalInput.accepted(); }
+        function snapshot(): string {
+            return JSON.stringify({
+                scroll: viewport.contentY, height: viewport.height,
+                content: viewport.contentHeight,
+                applyVisible: apply.mapToItem(viewport, 0, 0).y >= 0 && apply.mapToItem(viewport, 0, 0).y + apply.height <= viewport.height + 1,
+                goalInhibited: inhibitor.active,
+                goalName: goalInput.Accessible.name,
+                buttonRole: apply.Accessible.role === Accessible.Button
+            });
+        }
+    }
+}
+"""
         )
         run("git", "init", "-b", "main", str(source))
         run("git", "-C", str(source), "add", "--all")
@@ -156,11 +187,12 @@ def main():
                     "disabledPlugins": sorted(disabled),
                     "plugins": [],
                     "bar": {
+                        "position": args.bar_position,
                         "layout": {
                             "left": [],
                             "center": [],
                             "right": [],
-                        }
+                        },
                     },
                 }
             )
@@ -187,9 +219,17 @@ def main():
         backend = plugin / "counter.py"
         run(sys.executable, str(backend), "increment")
         assert run(sys.executable, str(backend)) == "1"
+        wait_for(lambda: key_is("F1"))
         assert not own()[0]["non_consuming"] and not own()[0]["repeat"]
-        assert run("hyprctl", "eval", "assert(_G.yaqyn_counter.binding.ignore_mods)") == "ok"
-        record("saved count and actual consuming, nonrepeating, modifier-ignoring binding verified")
+        assert (
+            run(
+                "hyprctl",
+                "eval",
+                "assert(not _G.yaqyn_counter.binding.ignore_mods and _G.yaqyn_counter.reset)",
+            )
+            == "ok"
+        )
+        record("saved count and actual consuming, nonrepeating, reset shortcut verified")
         run("hyprctl", "output", "create", "headless", "QA-2")
         wait_for(lambda: len(json.loads(run("hyprctl", "-j", "monitors"))) == 2)
         assert key_is("F1")
@@ -201,14 +241,51 @@ def main():
         run("hyprctl", "reload")
         wait_for(lambda: key_is("F8"))
         record("compositor reload restores the saved key")
+        run(sys.executable, str(backend), "off")
+        assert not own()
+        assert not [
+            b
+            for b in json.loads(run("hyprctl", "-j", "binds"))
+            if b.get("description") == "Counter: reset count"
+        ]
+        run("hyprctl", "reload")
+        time.sleep(0.3)
+        assert not own()
+        run(sys.executable, str(backend), "key-increment")
+        assert run(sys.executable, str(backend)) == "1"
+        run(sys.executable, str(backend), "set-key", "F9")
+        assert not own()
+        run(sys.executable, str(backend), "on")
+        assert key_is("F9")
+        run(sys.executable, str(backend), "set-key", "F8")
+        record(
+            "Turn off releases both shortcuts, survives reload, preserves total and allows a new key"
+        )
+        resets = [
+            b
+            for b in json.loads(run("hyprctl", "-j", "binds"))
+            if b.get("description") == "Counter: reset count"
+        ]
+        assert len(resets) == 1 and resets[0]["key"] == "F8" and resets[0]["modmask"] == 5
+        assert own()[0]["modmask"] == 0
+        run(sys.executable, str(backend), "key-reset")
+        assert run(sys.executable, str(backend)) == "0"
+        run(sys.executable, str(backend), "key-increment")
+        assert run(sys.executable, str(backend)) == "1"
+        record(
+            "reset uses Ctrl+Shift only; keyboard commands reset and increment the isolated tally"
+        )
+        run(sys.executable, str(backend), "set-goal", "33")
+        assert run(sys.executable, str(backend), "goal") == "33"
+        record("goal preference saves and reloads")
         update = json.loads((source / "manifest.json").read_text())
-        update["version"] = "1.4.1"
+        update["version"] = "1.5.1"
         (source / "manifest.json").write_text(json.dumps(update))
         run("git", "-C", str(source), "add", "manifest.json")
         commit_fixture("Upgrade test fixture")
         run("omarchy", "plugin", "update", "yaqyn.counter", "--yes")
         wait_for(lambda: key_is("F8"))
-        assert json.loads((plugin / "manifest.json").read_text())["version"] == "1.4.1"
+        assert json.loads((plugin / "manifest.json").read_text())["version"] == "1.5.1"
         assert run(sys.executable, str(backend)) == "1"
         record("native git update preserves the total and selected key")
         lease = root / ("yaqyn.counter-" + signature) / "lease.json"
@@ -225,10 +302,48 @@ def main():
         record("ten native disable/enable cycles release and restore the key")
         run("omarchy-shell", "shell", "summon", "yaqyn.counter")
         time.sleep(0.3)
+
+        def panel_call(method, *arguments):
+            return run(
+                "qs",
+                "ipc",
+                "-p",
+                str(Path(os.environ["OMARCHY_PATH"]) / "shell"),
+                "call",
+                "counter-test",
+                method,
+                *arguments,
+            )
+
+        panel_call("focusApply")
+        wait_for(lambda: json.loads(panel_call("snapshot"))["applyVisible"])
+        snapshot = json.loads(panel_call("snapshot"))
+        (root / "panel-state.json").write_text(json.dumps(snapshot, indent=2))
+        assert snapshot["applyVisible"] and snapshot["buttonRole"] and snapshot["goalName"]
+        if args.scale == 2 and args.bar_position in ("top", "bottom"):
+            assert snapshot["scroll"] > 0
+        panel_call("focusGoal")
+        wait_for(lambda: json.loads(panel_call("snapshot"))["goalInhibited"])
+        panel_call("saveGoal", "75")
+        wait_for(lambda: run(sys.executable, str(backend), "goal") == "75")
+        record(
+            "native focus scrolls controls into view; accessible roles and protected goal entry/save work"
+        )
         run(sys.executable, str(backend), "set-key", "F9")
         assert key_is("F9")
         if shutil.which("grim"):
-            run("grim", "-g", "0,0 340x410", str(root / "panel.png"))
+            run(sys.executable, str(backend), "set-key", "F1")
+            run(sys.executable, str(backend), "set-goal", "100")
+            run(sys.executable, str(backend), "add", "32")
+            run("omarchy-shell", "shell", "hide", "yaqyn.counter")
+            run("omarchy-shell", "shell", "summon", "yaqyn.counter")
+            time.sleep(0.5)
+            run(
+                "grim", "-g", "0,0 330x" + str(min(600, 720 // args.scale)), str(root / "panel.png")
+            )
+            run(sys.executable, str(backend), "reset")
+            run(sys.executable, str(backend), "increment")
+            run(sys.executable, str(backend), "set-key", "F9")
         log = (root / "shell.log").read_text()
         assert not any(
             message in log for message in ("ReferenceError", "TypeError", "Unable to assign")

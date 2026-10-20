@@ -14,6 +14,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -28,6 +29,8 @@ if SIGNATURE and not re.fullmatch(r"[A-Za-z0-9_.-]+", SIGNATURE):
     SIGNATURE = ""
 SESSION = RUNTIME / ("yaqyn.counter-" + (SIGNATURE or "no-session"))
 DESCRIPTION = "Counter: count once"
+RESET_DESCRIPTION = "Counter: reset count"
+OWN_DESCRIPTIONS = (DESCRIPTION, RESET_DESCRIPTION)
 
 
 class CounterError(Exception):
@@ -36,7 +39,7 @@ class CounterError(Exception):
 
 @contextmanager
 def locked(name):
-    STATE.mkdir(parents=True, exist_ok=True)
+    STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
     with (STATE / name).open("a") as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
         yield
@@ -72,7 +75,7 @@ def read_count():
     return int(value)
 
 
-def change_count(action, amount=1):
+def change_count(action, amount=1, notify=True):
     with locked("lock"):
         if action == "reset":
             value = 0  # Explicit reset can also recover a damaged state file.
@@ -83,8 +86,122 @@ def change_count(action, amount=1):
             if action in {"increment", "add"} and count > 10**100 - 1 - amount:
                 raise CounterError("Count limit reached. Reset to start again.")
             value = count + amount if action in {"increment", "add"} else max(0, count - 1)
+        try:
+            goal = read_goal() if action in {"increment", "add"} else 0
+        except (CounterError, UnicodeError):
+            goal = 0  # A damaged optional preference must never disable counting.
         atomic_write(STATE / "count", f"{value}\n")
-        return value
+        reached = goal and count < goal <= value
+    if reached and notify:
+        notify_goal(goal)
+    return (value, goal if reached else 0) if not notify else value
+
+
+def read_goal():
+    try:
+        value = (STATE / "goal").read_text().strip()
+    except FileNotFoundError:
+        return 0
+    if not re.fullmatch(r"[0-9]{1,100}", value):
+        raise CounterError("Saved goal is unreadable. Save a new goal to recover.")
+    return int(value)
+
+
+def set_goal(value):
+    with locked("lock"):
+        atomic_write(STATE / "goal", f"{value}\n")
+
+
+def notify_goal(goal):
+    # Notifications are best effort: an unavailable daemon must never lose a count.
+    try:
+        result = subprocess.run(
+            [
+                "notify-send",
+                "--print-id",
+                "--app-name=Counter",
+                "--expire-time=1500",
+                "Goal reached",
+                f"You reached your goal of {goal}.",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        notification_id = result.stdout.strip()
+        if result.returncode == 0 and notification_id.isdecimal():
+            # Omarchy applies a longer minimum timeout. Close only our own toast.
+            time.sleep(1.5)
+            subprocess.run(
+                [
+                    "gdbus",
+                    "call",
+                    "--session",
+                    "--dest",
+                    "org.freedesktop.Notifications",
+                    "--object-path",
+                    "/org/freedesktop/Notifications",
+                    "--method",
+                    "org.freedesktop.Notifications.CloseNotification",
+                    notification_id,
+                ],
+                capture_output=True,
+                timeout=2,
+                check=False,
+            )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def counting_enabled():
+    try:
+        value = (STATE / "enabled").read_text().strip()
+    except FileNotFoundError:
+        return True
+    if value not in ("on", "off"):
+        raise CounterError("Saved power setting is unreadable. Turn Counter on or off to recover.")
+    return value == "on"
+
+
+def keyboard_count(action):
+    # A queued key command cannot alter the total after Turn off has completed.
+    with locked("settings.lock"):
+        if not counting_enabled():
+            return
+        value, reached_goal = change_count(action, notify=False)
+    if reached_goal:
+        notify_goal(reached_goal)
+    return value
+
+
+def set_enabled(enabled):
+    with locked("settings.lock"):
+        token = lease_token()
+        previous_file = (STATE / "enabled").read_bytes() if (STATE / "enabled").exists() else None
+        try:
+            previous = counting_enabled()
+        except (CounterError, UnicodeError):
+            previous = False
+        try:
+            if enabled:
+                key, symbol = canonical_key(current_key())
+                check_conflicts(key, symbol)
+                register(key, token)
+            else:
+                unregister(token)
+            atomic_write(STATE / "enabled", "on\n" if enabled else "off\n")
+            status(active=enabled)
+        except (CounterError, OSError):
+            if previous_file is None:
+                (STATE / "enabled").unlink(missing_ok=True)
+            else:
+                atomic_write(STATE / "enabled", previous_file)
+            if previous:
+                register(current_key(), token)
+            else:
+                unregister(token)
+            raise
 
 
 def current_key():
@@ -170,36 +287,47 @@ def check_conflicts(key, symbol):
     library = key_library()
     for binding in bindings():
         other = library.xkb_keysym_from_name(str(binding.get("key", "")).encode(), 1)
-        if other == symbol and binding.get("description") != DESCRIPTION:
+        if other == symbol and binding.get("description") not in OWN_DESCRIPTIONS:
             label = binding.get("description") or "another desktop shortcut"
             raise CounterError(f"{key} is already used by {label}.")
-        if binding.get("keycode") and binding.get("description") != DESCRIPTION:
+        if binding.get("keycode") and binding.get("description") not in OWN_DESCRIPTIONS:
             raise CounterError(
                 "A physical-key shortcut needs a manual conflict check before selecting this key."
             )
 
 
 def register(key, token):
-    command = shlex.join([sys.executable, str(EXECUTABLE), "increment"])
-    # Keep the actual binding object, so removal cannot unbind someone else's key.
+    command = shlex.join([sys.executable, str(EXECUTABLE), "key-increment"])
+    reset = shlex.join([sys.executable, str(EXECUTABLE), "key-reset"])
+    # Retain both objects; token-scoped removal never unbinds someone else's key.
     code = (
         f"if _G.yaqyn_counter_cancelled and _G.yaqyn_counter_cancelled[{lua_string(token)}] then return end; "
-        "local old = _G.yaqyn_counter; if old then pcall(function() old.binding:remove() end); _G.yaqyn_counter = nil end; "
+        "local old = _G.yaqyn_counter; if old then "
+        "pcall(function() old.binding:remove() end); "
+        "pcall(function() old.reset:remove() end); _G.yaqyn_counter = nil end; "
         f"local new = hl.bind({lua_string(key)}, hl.dsp.exec_cmd({lua_string(command)}), "
-        f"{{ description = {lua_string(DESCRIPTION)}, ignore_mods = true }}); "
-        f"_G.yaqyn_counter = {{ token = {lua_string(token)}, binding = new }}"
+        f"{{ description = {lua_string(DESCRIPTION)} }}); "
+        f"_G.yaqyn_counter = {{ token = {lua_string(token)}, binding = new }}; "
+        f"_G.yaqyn_counter.reset = hl.bind({lua_string('CTRL + SHIFT + ' + key)}, "
+        f"hl.dsp.exec_cmd({lua_string(reset)}), "
+        f"{{ description = {lua_string(RESET_DESCRIPTION)} }})"
     )
     response = hyprctl("eval", code)
     if response != "ok":
-        raise CounterError("Hyprland could not register the counting key.")
-    own = [item for item in bindings() if item.get("description") == DESCRIPTION]
+        raise CounterError("Hyprland could not register the counter shortcuts.")
+    own = [item for item in bindings() if item.get("description") in OWN_DESCRIPTIONS]
     if (
-        len(own) != 1
-        or own[0].get("key") != key
-        or own[0].get("non_consuming")
-        or own[0].get("repeat")
+        len(own) != 2
+        or any(
+            item.get("key") != key
+            or item.get("non_consuming")
+            or item.get("repeat")
+            or item.get("modmask") != (5 if item.get("description") == RESET_DESCRIPTION else 0)
+            for item in own
+        )
+        or {item.get("description") for item in own} != set(OWN_DESCRIPTIONS)
     ):
-        raise CounterError("The counting key did not load correctly.")
+        raise CounterError("The counter shortcuts did not load correctly.")
 
 
 def unregister(token, cancel=False):
@@ -215,7 +343,7 @@ def unregister(token, cancel=False):
         "eval",
         prefix + "local v = _G.yaqyn_counter; "
         f"if v and v.token == {lua_string(token)} then "
-        "pcall(function() v.binding:remove() end); _G.yaqyn_counter = nil end",
+        "pcall(function() v.binding:remove() end); pcall(function() v.reset:remove() end); _G.yaqyn_counter = nil end",
     )
     if response != "ok":
         raise CounterError("Could not release the counting key.")
@@ -247,9 +375,11 @@ def set_key(name):
         owned = [item for item in bindings() if item.get("description") == DESCRIPTION]
         previous_key = owned[0].get("key") if len(owned) == 1 else None
         try:
-            register(key, token)
+            enabled = counting_enabled()
+            if enabled:
+                register(key, token)
             save_key(key)
-            status(active=True)
+            status(active=enabled)
         except (CounterError, OSError) as error:
             try:
                 if previous_key:
@@ -286,7 +416,7 @@ def serve(token=None):
     """One service per compositor; stdin and signals tie its lifetime to the shell."""
     if not SIGNATURE or not (RUNTIME / "hypr" / SIGNATURE / ".socket2.sock").exists():
         raise CounterError("A running Hyprland Lua session is required.")
-    STATE.mkdir(parents=True, exist_ok=True)
+    STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
     SESSION.mkdir(mode=0o700, parents=True, exist_ok=True)
     token = token or uuid.uuid4().hex
     stop_read, stop_write = socket.socketpair()
@@ -327,14 +457,22 @@ def serve(token=None):
                     )
                     try:
                         key, symbol = canonical_key(current_key())
-                        check_conflicts(key, symbol)
-                        register(key, token)
+                        enabled = counting_enabled()
+                        if enabled:
+                            check_conflicts(key, symbol)
+                            register(key, token)
+                        else:
+                            unregister(token)
                         if not (STATE / "count").exists():
                             with locked("lock"):
                                 if not (STATE / "count").exists():
                                     atomic_write(STATE / "count", "0\n")
-                        status(active=True)
-                    except (CounterError, OSError) as error:
+                        status(active=enabled)
+                    except (CounterError, OSError, UnicodeError) as error:
+                        try:
+                            unregister(token)
+                        except CounterError:
+                            pass
                         status(str(error), active=False)
                     return True
 
@@ -388,6 +526,12 @@ def main():
             "set-key",
             "serve",
             "release",
+            "on",
+            "off",
+            "goal",
+            "set-goal",
+            "key-increment",
+            "key-reset",
         ),
     )
     parser.add_argument("key_name", nargs="?")
@@ -397,13 +541,24 @@ def main():
             parser.error("service ownership token must be 32 hexadecimal characters")
         if args.action == "release" and args.key_name is None:
             parser.error("release requires a service ownership token")
+    elif args.action == "set-goal":
+        if args.key_name is None or not re.fullmatch(r"[0-9]{1,100}", args.key_name):
+            parser.error("set-goal requires a nonnegative integer; 0 disables the goal")
     elif args.action == "add":
         if args.key_name is None or not re.fullmatch(r"[1-9][0-9]{0,99}", args.key_name):
             parser.error("add requires one positive integer")
     elif (args.action == "set-key") != (args.key_name is not None):
         parser.error("set-key requires one key name; other commands take no key name")
     try:
-        if args.action == "serve":
+        if args.action in ("on", "off"):
+            set_enabled(args.action == "on")
+        elif args.action == "goal":
+            print(read_goal())
+        elif args.action == "set-goal":
+            set_goal(int(args.key_name))
+        elif args.action in ("key-increment", "key-reset"):
+            keyboard_count(args.action.removeprefix("key-"))
+        elif args.action == "serve":
             serve(args.key_name)
         elif args.action == "release":
             release(args.key_name)
@@ -416,7 +571,7 @@ def main():
             value = change_count(args.action, amount)
             if args.action in {"show", "add"}:
                 print(value)
-    except (CounterError, OSError, OverflowError) as error:
+    except (CounterError, OSError, OverflowError, UnicodeError) as error:
         message = (
             str(error)
             if isinstance(error, CounterError)
